@@ -61,13 +61,15 @@ func start(token *token.Token, ws *dto.WebsocketAP, api *client.OpenAPI) {
 	}
 	ctx := context.Background()
 
-	var so solia.Solia
+	soMap := &solia.MpSolia{
+		Mp: map[string]*solia.Solia{},
+	}
 	var handel dto.ATMessageEventHandler = func(event1 *dto.WSPayload, data *dto.Message) error {
 		if strings.Index(data.Content, "hello") > -1 || strings.Index(data.Content, "你好") > -1 { // 如果@机器人并输入 hello or 你好 则回复 你好。
 			api.PostMessage(ctx, data.ChannelID, data.Author.ID, &dto.MessageToCreate{MsgID: data.ID, Content: solia.Hello})
 		}
 		if strings.Index(data.Content, solia.Solitaire) > -1 { // 如果@机器人并输入 成语接龙 则开始游戏。
-			str, err := so.ReadStart(data.Author.ID)
+			str, err := soMap.ReadStart(data.Author.ID)
 			var msg string
 			if err != nil {
 				msg = err.Error()
@@ -75,8 +77,8 @@ func start(token *token.Token, ws *dto.WebsocketAP, api *client.OpenAPI) {
 				msg = solia.Start + "『" + str + "』"
 			}
 			api.PostMessage(ctx, data.ChannelID, data.Author.ID, &dto.MessageToCreate{MsgID: data.ID, Content: msg})
-		} else if so.UserId != "" && so.UserId == data.Author.ID && strings.Index(data.Content, solia.Cancel) == -1 { //开始接龙
-			str, err := so.ReadStr(data.Content)
+		} else if soMap.Mp[data.Author.ID] != nil && strings.Index(data.Content, solia.Cancel) == -1 { //开始接龙
+			str, err := soMap.ReadStr(data.Content, data.Author.ID)
 			var msg string
 			if err != nil {
 				msg = err.Error()
@@ -84,8 +86,8 @@ func start(token *token.Token, ws *dto.WebsocketAP, api *client.OpenAPI) {
 				msg = solia.Action + "『" + str + "』"
 			}
 			api.PostMessage(ctx, data.ChannelID, data.Author.ID, &dto.MessageToCreate{MsgID: data.ID, Content: msg})
-		} else if so.UserId != "" && so.UserId == data.Author.ID && strings.Index(data.Content, solia.Cancel) > -1 {
-			so.ReNew()
+		} else if soMap.Mp[data.Author.ID] != nil && strings.Index(data.Content, solia.Cancel) > -1 {
+			delete(soMap.Mp, data.Author.ID)
 			api.PostMessage(ctx, data.ChannelID, data.Author.ID, &dto.MessageToCreate{MsgID: data.ID, Content: "游戏结束"})
 		}
 		return nil
