@@ -16,7 +16,7 @@ func TestBotToken(t *testing.T) {
 		want *Token
 	}{
 		{
-			name: "test1",
+			name: "test1-生成token",
 			args: args{
 				appID:       1232,
 				accessToken: "1232",

@@ -12,16 +12,23 @@ func TestOPMeans(t *testing.T) {
 		want string
 	}{
 		{
-			name: "test1",
+			name: "test1-获取下标为0的opMeans值",
 			args: args{
 				op: 0,
 			},
 			want: "Event",
 		},
 		{
-			name: "test1",
+			name: "test2-获取下标为-1的opMeans值",
 			args: args{
 				op: -1,
+			},
+			want: "unknown",
+		},
+		{
+			name: "test3-获取下标为3的opMeans值",
+			args: args{
+				op: 3,
 			},
 			want: "unknown",
 		},

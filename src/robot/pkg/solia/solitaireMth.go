@@ -38,79 +38,88 @@ func (s *Set) Clear() {
 	s.m = make(map[interface{}]struct{})
 }
 
+//多人游戏对象
+type MpSolia struct {
+	rd []string          // 存储成语数据
+	Mp map[string]*Solia //游戏者信息
+}
+
 type Solia struct {
-	UserId string //正在接龙的用户id
 	StrSet Set    //已经使用过的成语
-	flag   bool   //是否开始接龙
-	rd     []string
 	tryNum int    // 尝试次数
 	nowStr string //当前接龙的成语
 }
 
-func (s *Solia) ReNew() {
-	s.tryNum = 3
-	s.StrSet.Clear()
-	s.UserId = ""
-	s.nowStr = ""
+//多人游戏开始
+func (ms *MpSolia) ReadStart(userID string) (string, error) {
+	if ms.Mp[userID] != nil { //已经有游戏者信息了，说明已经开始游戏了
+		return "", errors.New(ReStart)
+	} else {
+		ms.Mp[userID] = &Solia{}
+		return ms.Mp[userID].readStart(userID, ms)
+	}
 }
 
-func (s *Solia) ReadStart(userID string) (string, error) {
+//单人游戏开始获取第一个成语
+func (s *Solia) readStart(userID string, ms *MpSolia) (string, error) {
 	//打开文件
 	s.tryNum = 3
 	s.StrSet.m = make(map[interface{}]struct{})
-	if s.UserId == "" {
-		s.UserId = userID
-	} else {
-		if s.UserId != userID {
-			return "", errors.New(Wait)
-		} else {
-			return "", errors.New(ReStart)
-		}
-	}
 	n := rand.Intn(9999) + 1
-	str, err := s.readLineNum(n)
+	str, err := ms.readLineNum(n)
 	s.StrSet.Add(str)
 	s.nowStr = str
 	return str, err
 }
 
-func (s *Solia) readLineNum(lineNum int) (string, error) {
+func (ms *MpSolia) readLineNum(lineNum int) (string, error) {
 	//成语数据为空，则重新获取
-	if s.rd == nil {
-		err := s.getFiles()
+	if ms.rd == nil {
+		err := ms.getFiles()
 		if err != nil {
 			return "", err
 		}
 	}
-	for i := 0; i < len(s.rd); i++ {
-		line := s.rd[i]
-		if i+1 >= lineNum && utf8.RuneCountInString(line) == 4 {
-			return line, nil
+	if lineNum > 0 {
+		for i := 0; i < len(ms.rd); i++ {
+			line := ms.rd[i]
+			if i+1 >= lineNum && utf8.RuneCountInString(line) == 4 {
+				return line, nil
+			}
 		}
 	}
 	return "人山人海", nil
 }
 
-func (s *Solia) ReadStr(content string) (string, error) {
+func (ms *MpSolia) ReadStr(content string, userId string) (string, error) {
+	str, err, b := ms.Mp[userId].readStr(content, ms)
+	if b { //游戏结束
+		delete(ms.Mp, userId)
+	}
+	if err != nil {
+		return "", err
+	}
+	return str, err
+}
+
+func (s *Solia) readStr(content string, ms *MpSolia) (string, error, bool) {
 	strs := strings.Split(content, ">")
 	content = strings.TrimSpace(strs[len(strs)-1])
 	if s.StrSet.Contains(content) { //判断是否重复的成语
 		if s.tryNum > 1 {
 			s.tryNum--
-			return "", errors.New(fmt.Sprintf(ContainsNotOver, s.tryNum))
+			return "", errors.New(fmt.Sprintf(ContainsNotOver, s.tryNum)), false
 		} else {
-			s.ReNew()
-			return "", errors.New(fmt.Sprintf(ContainsOver3))
+			return "", errors.New(fmt.Sprintf(ContainsOver3)), true
 		}
 	}
-	s1 := string([]rune(s.nowStr)[3:])
+	s1 := string([]rune(s.nowStr)[utf8.RuneCountInString(s.nowStr)-1:])
 	if s1 != string([]rune(content)[:1]) { //判断首字是否和上一个成语尾字一样
 		if s.tryNum > 1 {
 			s.tryNum--
-			return "", errors.New(fmt.Sprintf(SameNotOver, s.tryNum))
+			return "", errors.New(fmt.Sprintf(SameNotOver, s.tryNum)), false
 		} else {
-			s.ReNew()
-			return "", errors.New(fmt.Sprintf(SameNotOver3))
+			return "", errors.New(fmt.Sprintf(SameNotOver3)), true
 		}
 	}
 	var res string
@@ -118,14 +127,14 @@ func (s *Solia) ReadStr(content string) (string, error) {
 	if len([]rune(content)) >= 4 {
 		str1 := string([]rune(content)[3:])
 
-		if s.rd == nil {
-			err := s.getFiles()
+		if ms.rd == nil {
+			err := ms.getFiles()
 			if err != nil {
-				return "", err
+				return "", err, false
 			}
 		}
-		for i := 0; i < len(s.rd); i++ {
-			line := s.rd[i]
+		for i := 0; i < len(ms.rd); i++ {
+			line := ms.rd[i]
 			if str1 == string([]rune(line)[:1]) && !s.StrSet.Contains(line) {
 				res = line
 			}
@@ -140,28 +149,24 @@ func (s *Solia) ReadStr(content string) (string, error) {
 	if !flag {
 		if s.tryNum > 1 {
 			s.tryNum--
-			return "", errors.New(fmt.Sprintf(ErrorNotOver, s.tryNum))
+			return "", errors.New(fmt.Sprintf(ErrorNotOver, s.tryNum)), false
 		} else {
-			s.ReNew()
-			return "", errors.New(fmt.Sprintf(ErrorOver3))
+			return "", errors.New(fmt.Sprintf(ErrorOver3)), true
 		}
 	} else {
-		//s.UserId=""
-		//s.StrSet.Clear()
 		s.StrSet.Add(content)
 		s.nowStr = content
 	}
 	if res == "" {
-		s.ReNew()
-		return "", errors.New(fmt.Sprintf(Success))
+		return "", errors.New(fmt.Sprintf(Success)), true
 	} else {
 		s.StrSet.Add(res)
 		s.nowStr = res
 	}
-	return res, nil
+	return res, nil, false
 }
 
-func (s *Solia) getFiles() error {
+func (ms *MpSolia) getFiles() error {
 	strPath, _ := os.Getwd()
 	strPath = strPath[:strings.LastIndex(strPath, "robot")+5]
 	file, err := os.Open(strPath + "./idiom.txt") //只是用来读的时候，用os.Open。绝对路径，获取robot路径
@@ -187,6 +192,6 @@ func (s *Solia) getFiles() error {
 
 		chunks = append(chunks, line)
 	}
-	s.rd = chunks
+	ms.rd = chunks
 	return nil
 }
