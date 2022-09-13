@@ -9,6 +9,8 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
+	"time"
 	"unicode/utf8"
 )
 
@@ -40,8 +42,9 @@ func (s *Set) Clear() {
 
 //多人游戏对象
 type MpSolia struct {
-	rd []string          // 存储成语数据
-	Mp map[string]*Solia //游戏者信息
+	rd   []string          // 存储成语数据
+	Mp   map[string]*Solia //游戏者信息
+	lock sync.RWMutex
 }
 
 type Solia struct {
@@ -52,6 +55,8 @@ type Solia struct {
 
 //多人游戏开始
 func (ms *MpSolia) ReadStart(userID string) (string, error) {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
 	if ms.Mp[userID] != nil { //已经有游戏者信息了，说明已经开始游戏了
 		return "", errors.New(ReStart)
 	} else {
@@ -65,6 +70,7 @@ func (s *Solia) readStart(userID string, ms *MpSolia) (string, error) {
 	//打开文件
 	s.tryNum = 3
 	s.StrSet.m = make(map[interface{}]struct{})
+	rand.Seed(time.Now().Unix())
 	n := rand.Intn(9999) + 1
 	str, err := ms.readLineNum(n)
 	s.StrSet.Add(str)
@@ -80,10 +86,10 @@ func (ms *MpSolia) readLineNum(lineNum int) (string, error) {
 			return "", err
 		}
 	}
-	if lineNum > 0 {
-		for i := 0; i < len(ms.rd); i++ {
+	if lineNum > 0 && lineNum <= len(ms.rd) {
+		for i := lineNum - 1; i < len(ms.rd); i++ {
 			line := ms.rd[i]
-			if i+1 >= lineNum && utf8.RuneCountInString(line) == 4 {
+			if utf8.RuneCountInString(line) == 4 {
 				return line, nil
 			}
 		}
@@ -92,6 +98,8 @@ func (ms *MpSolia) readLineNum(lineNum int) (string, error) {
 }
 
 func (ms *MpSolia) ReadStr(content string, userId string) (string, error) {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
 	str, err, b := ms.Mp[userId].readStr(content, ms)
 	if b { //游戏结束
 		delete(ms.Mp, userId)
@@ -194,4 +202,16 @@ func (ms *MpSolia) getFiles() error {
 	}
 	ms.rd = chunks
 	return nil
+}
+
+func (ms *MpSolia) GetMapValue(userId string) *Solia {
+	ms.lock.RLock()
+	defer ms.lock.RUnlock()
+	return ms.Mp[userId]
+}
+
+func (ms *MpSolia) DeleteMapValue(userId string) {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
+	delete(ms.Mp, userId)
 }

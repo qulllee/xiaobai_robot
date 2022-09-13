@@ -77,7 +77,7 @@ func start(token *token.Token, ws *dto.WebsocketAP, api *client.OpenAPI) {
 				msg = solia.Start + "『" + str + "』"
 			}
 			api.PostMessage(ctx, data.ChannelID, data.Author.ID, &dto.MessageToCreate{MsgID: data.ID, Content: msg})
-		} else if soMap.Mp[data.Author.ID] != nil && strings.Index(data.Content, solia.Cancel) == -1 { //开始接龙
+		} else if soMap.GetMapValue(data.Author.ID) != nil && strings.Index(data.Content, solia.Cancel) == -1 { //开始接龙
 			str, err := soMap.ReadStr(data.Content, data.Author.ID)
 			var msg string
 			if err != nil {
@@ -86,8 +86,8 @@ func start(token *token.Token, ws *dto.WebsocketAP, api *client.OpenAPI) {
 				msg = solia.Action + "『" + str + "』"
 			}
 			api.PostMessage(ctx, data.ChannelID, data.Author.ID, &dto.MessageToCreate{MsgID: data.ID, Content: msg})
-		} else if soMap.Mp[data.Author.ID] != nil && strings.Index(data.Content, solia.Cancel) > -1 {
-			delete(soMap.Mp, data.Author.ID)
+		} else if soMap.GetMapValue(data.Author.ID) != nil && strings.Index(data.Content, solia.Cancel) > -1 {
+			soMap.DeleteMapValue(data.Author.ID)
 			api.PostMessage(ctx, data.ChannelID, data.Author.ID, &dto.MessageToCreate{MsgID: data.ID, Content: "游戏结束"})
 		}
 		return nil
