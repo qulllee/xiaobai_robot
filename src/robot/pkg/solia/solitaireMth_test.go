@@ -109,7 +109,7 @@ func TestMpSolia_readLineNum(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "test1-获取第2行的成语(词库长度之类)",
+			name: "test1-获取第2行的成语(词库长度之内)",
 			fields: fields{
 				rd: []string{"人山人海", "海市蜃楼", "天外有天", "人外有人"},
 				Mp: map[string]*Solia{},
